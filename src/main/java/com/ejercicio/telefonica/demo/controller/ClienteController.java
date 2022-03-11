@@ -16,14 +16,16 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/cliente")
+@RequestMapping("/clientes")
 public class ClienteController {
 
   @Autowired
   ClienteService clienteService;
 
-  @GetMapping(value = "", produces = MediaType.APPLICATION_JSON_VALUE)
+  @GetMapping(value = "/cliente", produces = MediaType.APPLICATION_JSON_VALUE)
   @ApiResponses(value = {
           @ApiResponse(responseCode = "200", description = "Respuesta Correcta",
                   content = @Content(schema = @Schema(implementation = LineaMovilYOfertaPorClienteDTOResponse.class)))
@@ -35,6 +37,19 @@ public class ClienteController {
                                                     @Parameter(description="nombre del tipo de documento")
                                                     @RequestParam(required = true, value="tipoDocumento") String tipoDocumento){
     return ResponseEntity.ok(clienteService.obtenerLineaMovilYOfertaPorCliente(numeroDocumento, tipoDocumento));
+  }
+  @GetMapping(value = "", produces = MediaType.APPLICATION_JSON_VALUE)
+  @ApiResponses(value = {
+          @ApiResponse(responseCode = "200", description = "Respuesta Correcta",
+                  content = @Content(schema = @Schema(implementation = LineaMovilYOfertaPorClienteDTOResponse.class)))
+  })
+  @Operation(summary = "Obtener todos los clientes cons sus lineas moviles y ofertas", tags = {"cliente"})
+  public ResponseEntity<List<LineaMovilYOfertaPorClienteDTOResponse>> obtenerClientesLineaMovilOfertasPorFechas(
+          @Parameter(description="fecha de inicio, formato dd/MM/yyyy")
+          @RequestParam(required = true, value="fechaInicio") String  fechaInicio,
+          @Parameter(description="fecha de fin, formato dd/MM/yyyy")
+          @RequestParam(required = true, value="fechaFin") String fechaFin){
+    return ResponseEntity.ok(clienteService.obtenerClientesLineaMovilOfertasPorFechas(fechaInicio, fechaFin));
   }
 
 }

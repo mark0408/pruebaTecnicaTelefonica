@@ -5,6 +5,7 @@ import com.ejercicio.telefonica.demo.domain.LineaMovil;
 import com.ejercicio.telefonica.demo.domain.Oferta;
 import com.ejercicio.telefonica.demo.dto.LineaMovilDTOResponse;
 import com.ejercicio.telefonica.demo.dto.LineaMovilYOfertaPorClienteDTOResponse;
+import com.ejercicio.telefonica.demo.dto.OfertaDTO;
 import com.ejercicio.telefonica.demo.repository.ClienteRepository;
 import com.ejercicio.telefonica.demo.repository.LineaMovilRepository;
 import com.ejercicio.telefonica.demo.repository.OfertaRepository;
@@ -13,10 +14,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 @Service
@@ -31,19 +38,18 @@ public class ClienteService {
   OfertaRepository ofertaRepository;
 
   public LineaMovilYOfertaPorClienteDTOResponse obtenerLineaMovilYOfertaPorCliente(String numeroDocumento, String tipoDocumento){
+    log.info("Entro al metodo obtenerLineaMovilYOfertaPorCliente");
     LineaMovilYOfertaPorClienteDTOResponse response = new LineaMovilYOfertaPorClienteDTOResponse();
-    // verificar que exista el cliente
     Optional<Cliente> optionalCliente = clienteRepository.findByTipoDocumentoAndNumeroDocumento(tipoDocumento,numeroDocumento);
     if(optionalCliente.isPresent()){
       Cliente cliente = optionalCliente.get();
-      //Obtener todas las lineas moviles de ese cliente
       List<LineaMovil> lineasMoviles = lineaMovilRepository.findByCliente(cliente);
-      //crear LineaMovilYOfertaPorClienteDTOResponse
       response = crearLineaMovilYOfertaPorClienteDTOResponse(cliente, lineasMoviles);
     }else{
       //lanzar error
+      log.error("Error no se encuentra cliente");
     }
-
+    log.info("Salio del metodo obtenerLineaMovilYOfertaPorCliente");
     return response;
   }
   private LineaMovilYOfertaPorClienteDTOResponse crearLineaMovilYOfertaPorClienteDTOResponse(Cliente cliente, List<LineaMovil> lineaMovilList){
@@ -68,31 +74,83 @@ public class ClienteService {
       lineaMovilDTOResponse.setTipo(lin.getTipo());
       lineaMovilDTOResponse.setEstado(lin.getEstado());
       lineaMovilDTOResponse.setNumeroTelefono(lin.getNumeroTelefono());
-      lineaMovilDTOResponse.setOfertas(ofertaList.stream().filter(of-> of.getLineaMovil().equals(lin)).collect(
-              Collectors.toList()));
+      List<OfertaDTO> ofertas = crearOfertaDTOList(
+              ofertaList.stream().filter(of-> of.getLineaMovil().equals(lin)).collect(
+                      Collectors.toList())
+      );
+      lineaMovilDTOResponse.setOfertas(ofertas);
     responses.add(lineaMovilDTOResponse);
     });
-    //ofertaList.stream().map()
 
     return responses;
   }
+  private List<OfertaDTO> crearOfertaDTOList(List<Oferta> ofertas){
+    List<OfertaDTO> ofertaDTOList = new ArrayList<>();
 
-  public List<LineaMovilYOfertaPorClienteDTOResponse> obtenerClientesLineaMovilOfertasPorFechas(String fechaIni, String fechaFin){
-    List<LineaMovilYOfertaPorClienteDTOResponse> response = new ArrayList<>();
-    //obtener las ofertas por un rango de fechas
-    List<Oferta> ofertaList = obtenerOfertasPorFechas(fechaIni,fechaFin);
+    ofertas.forEach(oferta->{
+      OfertaDTO temporal = new OfertaDTO();
+      temporal.setCodigoOferta(oferta.getCodigoOferta());
+      temporal.setDescripcionOferta(oferta.getDescripcionOferta());
+      temporal.setFechaFinal(oferta.getFechaFinal());
+      temporal.setFechaInicio(oferta.getFechaInicio());
+      temporal.setId(oferta.getId());
+      ofertaDTOList.add(temporal);
+    });
 
-    //buscar al cliente que tenga 3 lineas moviles
-    return response;
+    return ofertaDTOList;
   }
 
+  public List<LineaMovilYOfertaPorClienteDTOResponse> obtenerClientesLineaMovilOfertasPorFechas(String fechaIni, String fechaFin){
+    log.info("Entro al metodo obtenerClientesLineaMovilOfertasPorFechas");
+    List<LineaMovilYOfertaPorClienteDTOResponse> response = new ArrayList<>();
+
+    List<Oferta> ofertaList = obtenerOfertasPorFechas(fechaIni,fechaFin);
+
+    response = obtenerClientesPorOfertas(ofertaList);
+
+    response = filtrarLineasMoviles(response);
+    log.info("Salio del metodo obtenerClientesLineaMovilOfertasPorFechas");
+    return response;
+  }
   private List<Oferta> obtenerOfertasPorFechas(String fechaIni,String fechaFin){
     List<Oferta> response = new ArrayList<>();
-    if(fechaIni != null && fechaFin != null){
-
-      }else{
-        //buscar por una de las fechas
+    try {
+      if(fechaIni != null && fechaFin != null){
+        DateFormat format = new SimpleDateFormat("yyyy/MM/dd");
+        response = ofertaRepository.findByFechaInicioLessThanEqualAndFechaFinalGreaterThanEqual(format.parse(fechaFin),format.parse(fechaIni));
       }
+      else{
+        //lanzar error
+      }
+    }catch (Exception e){
+
+    }
+
     return response;
+  }
+  private List<LineaMovilYOfertaPorClienteDTOResponse> obtenerClientesPorOfertas(List<Oferta> ofertaList){
+    List<LineaMovilYOfertaPorClienteDTOResponse> response = new ArrayList<>();
+    Set<LineaMovil> lineaMovilList = ofertaList.stream().map(Oferta::getLineaMovil).collect(Collectors.toSet());
+    Set<Cliente> clienteList = lineaMovilList.stream().map(LineaMovil::getCliente).collect(Collectors.toSet());
+    response =crearLineaMovilYOfertaPorClienteDTOResponseList(clienteList,lineaMovilList);
+
+    return response;
+  }
+  private List<LineaMovilYOfertaPorClienteDTOResponse> crearLineaMovilYOfertaPorClienteDTOResponseList(Set<Cliente> clienteList,Set<LineaMovil> lineaMovilList){
+    List<LineaMovilYOfertaPorClienteDTOResponse> responses = new ArrayList<>();
+    clienteList.forEach(cliente -> {
+      LineaMovilYOfertaPorClienteDTOResponse temporal = crearLineaMovilYOfertaPorClienteDTOResponse(cliente,lineaMovilList.stream().filter(linea->linea.getCliente().equals(cliente)).collect(
+              Collectors.toList()));
+      responses.add(temporal);
+    });
+    return responses;
+  }
+  private List<LineaMovilYOfertaPorClienteDTOResponse> filtrarLineasMoviles(List<LineaMovilYOfertaPorClienteDTOResponse> dtoResponse){
+   return dtoResponse.stream()
+                     .filter(dto -> lineasActivasYMayor3(dto.getLineasMoviles()))
+                     .collect(Collectors.toList());
+  }
+  private boolean lineasActivasYMayor3(List<LineaMovilDTOResponse> lineasMoviles){
+    return lineasMoviles.stream().filter(linea->linea.getEstado().equals("activo")).count()>=3;
   }
 }
